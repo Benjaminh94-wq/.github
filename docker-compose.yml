@@ -1,0 +1,74 @@
+version: "3.9"
+
+# OmniNode SWE-Edition v10
+# Services:
+#   ollama      – local LLM backend  (port 11434)
+#   code-server – browser-based IDE  (port 3000)
+#   omninode    – Python orchestrator
+
+services:
+
+  # --------------------------------------------------------------------------
+  # Ollama – local LLM inference server
+  # --------------------------------------------------------------------------
+  ollama:
+    image: ollama/ollama:latest
+    container_name: omninode-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # --------------------------------------------------------------------------
+  # code-server – VS Code in the browser
+  # --------------------------------------------------------------------------
+  code-server:
+    image: codercom/code-server:latest
+    container_name: omninode-ide
+    restart: unless-stopped
+    ports:
+      - "3000:8080"
+    volumes:
+      - workspace:/home/coder/workspace
+    environment:
+      - PASSWORD=${IDE_PASSWORD:-omninode}
+      - DOCKER_USER=coder
+    depends_on:
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # --------------------------------------------------------------------------
+  # OmniNode orchestrator – Python agent
+  # --------------------------------------------------------------------------
+  omninode:
+    build:
+      context: .
+      dockerfile: Dockerfile.omninode
+    container_name: omninode-orchestrator
+    restart: unless-stopped
+    network_mode: host          # needs direct access to Ollama on localhost
+    volumes:
+      - ./omninode_agent.py:/app/omninode_agent.py:ro
+    depends_on:
+      ollama:
+        condition: service_healthy
+    command: ["python3", "/app/omninode_agent.py"]
+
+volumes:
+  ollama_data:
+  workspace:

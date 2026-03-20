@@ -1,0 +1,9 @@
+# OmniNode orchestrator image – minimal Python runtime
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# No third-party dependencies; stdlib only
+COPY omninode_agent.py /app/omninode_agent.py
+
+CMD ["python3", "/app/omninode_agent.py"]
